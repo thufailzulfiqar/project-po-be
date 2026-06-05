@@ -1,0 +1,439 @@
+{
+  "info": {
+    "name": "Project PO - Backend",
+    "_postman_id": "b1f2c3d4-0001-4a2b-9c3d-po-be-collection",
+    "description": "Koleksi untuk menguji seluruh endpoint backend Project PO (auth, upload/parser, PO documents, import jobs, errors, re-import).\n\nCara pakai:\n1. Pilih environment 'Project PO - Local' (atau set variable baseUrl).\n2. Jalankan 'Auth > Login' lebih dulu -> token JWT otomatis tersimpan ke variable {{token}}.\n3. Untuk 'Upload (Uji Parser)', pilih file .xlsx/.xls/.pdf di tab Body > form-data field 'file'.\n4. jobId & documentId otomatis tersimpan dari response upload, dipakai request berikutnya.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000", "type": "string" },
+    { "key": "token", "value": "", "type": "string" },
+    { "key": "jobId", "value": "", "type": "string" },
+    { "key": "documentId", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "health"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201 atau 409 (sudah ada)', function () {",
+                  "  pm.expect([201, 409]).to.include(pm.response.code);",
+                  "});",
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.token) {",
+                  "    pm.collectionVariables.set('token', json.token);",
+                  "    if (pm.environment && pm.environment.name) { pm.environment.set('token', json.token); }",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"email\": \"admin@example.com\",\n  \"password\": \"admin123\",\n  \"role\": \"admin\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('ada token', function () { pm.expect(json.token).to.be.a('string'); });",
+                  "if (json.token) {",
+                  "  pm.collectionVariables.set('token', json.token);",
+                  "  if (pm.environment && pm.environment.name) { pm.environment.set('token', json.token); }",
+                  "  console.log('Token tersimpan ke {{token}}' + (pm.environment.name ? (' (env: ' + pm.environment.name + ')') : ' (collection scope - tidak ada environment aktif!)'));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Me",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "me"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Upload (Uji Parser)",
+      "item": [
+        {
+          "name": "Upload Excel (.xlsx/.xls)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "if (json.job) {",
+                  "  const setVar = (k, v) => { pm.collectionVariables.set(k, v); if (pm.environment && pm.environment.name) { pm.environment.set(k, v); } };",
+                  "  if (json.job.jobId) setVar('jobId', json.job.jobId);",
+                  "  if (json.job.documentId) setVar('documentId', json.job.documentId);",
+                  "  console.log('jobId=' + json.job.jobId + ' documentId=' + json.job.documentId + ' status=' + json.job.status);",
+                  "}",
+                  "pm.test('parser mengembalikan baris', function () {",
+                  "  pm.expect(json.job.totalRows, 'totalRows').to.be.above(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "description": "Pilih file PO Excel (.xlsx atau .xls) dari komputer Anda",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "upload"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Upload PDF (.pdf)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "if (json.job) {",
+                  "  const setVar = (k, v) => { pm.collectionVariables.set(k, v); if (pm.environment && pm.environment.name) { pm.environment.set(k, v); } };",
+                  "  if (json.job.jobId) setVar('jobId', json.job.jobId);",
+                  "  if (json.job.documentId) setVar('documentId', json.job.documentId);",
+                  "  console.log('jobId=' + json.job.jobId + ' documentId=' + json.job.documentId + ' status=' + json.job.status);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "description": "Pilih file PO PDF (.pdf) dari komputer Anda",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "upload"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Upload - file tidak valid (negatif test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ditolak (400)', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "description": "Coba pilih file .txt/.png untuk memastikan ditolak fileFilter",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "upload"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "PO Documents",
+      "item": [
+        {
+          "name": "List PO Documents",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "if (json.documents && json.documents.length && !pm.collectionVariables.get('documentId')) {",
+                  "  pm.collectionVariables.set('documentId', json.documents[0].id);",
+                  "  if (pm.environment && pm.environment.name) { pm.environment.set('documentId', json.documents[0].id); }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/po",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "po"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get PO Document by id (+ items)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/po/{{documentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "po", "{{documentId}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Import Jobs",
+      "item": [
+        {
+          "name": "List Import Jobs (hasil import)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "if (json.jobs && json.jobs.length && !pm.collectionVariables.get('jobId')) {",
+                  "  pm.collectionVariables.set('jobId', json.jobs[0].id);",
+                  "  if (pm.environment && pm.environment.name) { pm.environment.set('jobId', json.jobs[0].id); }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/imports",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "imports"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Import Job by id (+ errors)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/imports/{{jobId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "imports", "{{jobId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Import Errors (data gagal import)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/imports/{{jobId}}/errors",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "imports", "{{jobId}}", "errors"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Re-import",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "console.log('re-import status: ' + (json.job && json.job.status));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/imports/{{jobId}}/reimport",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "imports", "{{jobId}}", "reimport"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

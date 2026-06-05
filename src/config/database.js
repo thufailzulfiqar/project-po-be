@@ -1,0 +1,15 @@
+const { Sequelize } = require('sequelize');
+const config = require('./index');
+
+const sequelize = new Sequelize(config.db.name, config.db.user, config.db.pass, {
+  host: config.db.host,
+  port: config.db.port,
+  dialect: 'postgres',
+  logging: config.env === 'development' ? console.log : false,
+  define: {
+    underscored: true, // snake_case columns in DB
+    timestamps: true,
+  },
+});
+
+module.exports = sequelize;
